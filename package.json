@@ -1,0 +1,40 @@
+{
+  "name": "bufsp",
+  "description": "BUffer Frame Serialization Protocol (BUFSP), parse pipelining chunks.",
+  "authors": [
+    "Yan Qing <admin@zensh.com>"
+  ],
+  "version": "0.1.0",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:teambition/bufsp.git"
+  },
+  "homepage": "https://github.com/teambition/bufsp.js",
+  "keywords": [
+    "bufsp",
+    "frame",
+    "buffer",
+    "socket",
+    "pipelining",
+    "Protocol",
+    "chunk"
+  ],
+  "dependencies": {},
+  "devDependencies": {
+    "gulp": "^3.8.8",
+    "gulp-jshint": "^1.9.2",
+    "gulp-mocha": "^2.0.0",
+    "gulp-sequence": "^0.3.2",
+    "mocha": "^2.2.0"
+  },
+  "scripts": {
+    "test": "gulp test"
+  },
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "test",
+    "gulpfile.js"
+  ]
+}
