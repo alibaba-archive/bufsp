@@ -1,6 +1,6 @@
 {
   "name": "bufsp",
-  "description": "BUffer Frame Serialization Protocol (BUFSP), parse pipelining chunks.",
+  "description": "Buffer Frame Serialization Protocol (BUFSP), parse pipelining chunks.",
   "authors": [
     "Yan Qing <admin@zensh.com>"
   ],

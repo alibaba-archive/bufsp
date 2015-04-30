@@ -1,11 +1,71 @@
 BUFSP
 ====
-BUffer Frame Serialization Protocol (BUFSP), parse pipelining chunks.
+Buffer Frame Serialization Protocol (BUFSP), parse pipelining chunks.
 
 [![NPM version][npm-image]][npm-url]
 [![Build Status][travis-image]][travis-url]
 
-## Implementations:
+BUFSP is a underlying protocol designed specifically for socket commutation with buffer frames.
+
+As we know, **chunks** output from net socket mostly are not represent integrated messages. Sometimes a **chunk** include onemore integrated messages, or a number of chunks represent a integrated message. How can we get message one by one from these chunks? **BUFSP** is designed.
+
+It is a subset of `Redis` [RESP](http://redis.io/topics/protocol).
+
+There are only two type:
+
+- **Errors**, the first byte of the reply is "-"
+- **Bulk Strings**, the first byte of the reply is "$"
+
+### BUFSP Errors
+
+It is use to response a error from one side to another. The basic format is:
+
+```
+"-Error message\r\n"
+```
+
+Become to buffer:
+```
+<Buffer 2d 45 72 72 6f 72 20 6d 65 73 73 61 67 65 0d 0a>
+```
+
+It will be decode to `new Error(message)`.
+
+### BUFSP Bulk Strings
+
+Bulk Strings are used in order to represent single binary safe string, `null`, or binary buffer.
+
+Bulk Strings are encoded in the following way:
+
+- A `"$"` byte followed by the number of bytes composing the string (a prefixed length), terminated by CRLF.
+- The actual string or binary data.
+- A final CRLF.
+
+So the string "foobar" is encoded as follows:
+
+```
+"$6\r\nfoobar\r\n"
+```
+
+the string "中文" is encoded as follows:
+
+```
+"$6\r\n中文\r\n"
+```
+
+When an empty string is just:
+
+```
+"$0\r\n\r\n"
+```
+
+RESP Bulk Strings can also be used in order to signal non-existence of a value using a special format that is used to represent a `null` value. In this special format the length is -1, and there is no data, so a `null` is represented as:
+
+```
+"$-1\r\n"
+```
+
+This is called a **Null Bulk String**.
 
 ## Install
 
@@ -22,55 +82,111 @@ npm install bufsp
 ## API
 
 ```js
-var resp = require('respjs');
+var Bufsp = require('bufsp');
 ```
 
+### Class Bufsp
 
-### resp.bufferify(value)
+#### new Bufsp([options])
 
-Encode `value` to RESP buffer.
+Bufsp is a Transform stream. It accept `BUFSP` chunks, parse them, produce integrated buffer frames | strings | null | error.
 
-### resp.stringify(value, forceBulkStrings)
-
-Encode `value` to RESP string.
-
-### resp.parse(string, returnBuffers)
-
-Decode RESP `string` to value.
-
-### resp.Resp(options)
-
-return a eventEmitter, then feed pipelining buffers and decode to some value.
+- `options` {Object}
+  - `encoding` {String} use to encode or decode between buffer and string, default to `'utf8'`
+  - `returnString` {Boolean} produce string with `encoding` option, default to `false`
 
 ```js
-var respEventEmitter = new resp.Resp({
-  expectResCount: 10,
-  returnBuffers: true
+var socket = net.connect(options);
+var bufsp = new Bufsp({returnString: true});
+
+bufsp.on('data', function(message) {
+  // received data and decode to message
+  console.log(JSON.stringify(message))
 })
+
+socket.pipe(bufsp);
+
+// send a message in BUFSP buffer
+socket.write(bufsp.encode(JSON.stringify({_id: 'xxx', name: 'test'})));
 ```
 
-#### Options.expectResCount
+#### Class Method: Bufsp.encode(value[, encoding])
 
-*Optional*, Type: `Number`, Default: `Number.MAX_VALUE`.
+Encode `value` to `BUFSP` buffer.
 
+- `value` {Buffer|String|null|Error} data to encode
+- `encoding` {String} String Encoding of String chunks, accept all `Buffer` encodings
 
-#### Options.returnBuffers
+Return buffer.
 
-*Optional*, Type: `Boolean`, Default: `false`.
+```js
+var nullBuf = Bufsp.encode(null);
+// <Buffer 24 2d 31 0d 0a>
 
+var errorBuf = Bufsp.encode(new Error('error!'));
+// <Buffer 2d 45 72 72 6f 72 20 65 72 72 6f 72 21 0d 0a>
 
-### respEventEmitter.feed(buffer)
-### respEventEmitter.setAutoEnd(resCount)
+var msgBuf = Bufsp.encode(JSON.stringify({_id: 0, name: 'bufsp'}));
+// <Buffer 24 32 34 0d 0a 7b 22 5f 69 64 22 3a 30 2c 22 6e 61 6d 65 22 3a 22 62 75 66 73 70 22 7d 0d 0a>
 
-### respEventEmitter.on('data', function(redisReplyData) {})
-### respEventEmitter.on('error', function(error) {})
-### respEventEmitter.on('wait', function() {})
-### respEventEmitter.on('end', function() {})
+var binBuf = Bufsp.encode(new Buffer([0xff, 0xff, 0xff]));
+// <Buffer 24 33 0d 0a ff ff ff 0d 0a>
+```
 
+#### Class Method: Bufsp.decode(buffer[, encoding])
+
+Decode `BUFSP` buffer to integrated buffer frame or string.
+
+- `buffer` {Buffer|String|null|Error} data to decode
+- `encoding` {String} String Encoding of String chunks, accept all `Buffer` encodings
+
+Return {Buffer|null|Error} data, if encoding is provided, it will try to return string. if buffer can't be decode, it will throw error.
+
+```js
+var val = Bufsp.decode(new Buffer([0x24, 0x2d, 0x31, 0x0d, 0x0a]));
+// null
+
+var errorBuf = Bufsp.encode(new Buffer([0x2d, 0x45, 0x72, 0x72, 0x6f, 0x72, 0x20, 0x65, 0x72, 0x72, 0x6f, 0x72, 0x21, 0x0d, 0x0a]));
+// { [Error: Error error!] type: 'Error' }
+```
+
+#### bufsp.push(chunk[, encoding])
+
+Same as readableStream's `push` metod. It should accept `BUFSP` chunk.
+
+#### bufsp.pipe(destination[, options])
+
+Same as readableStream's `pipe` metod.
+
+#### bufsp.encode(value[, encoding])
+
+Same as `Bufsp.encode`. It will use constructor's `options.encoding` while not provided.
+
+#### bufsp.decode(buffer[, encoding])
+
+Same as `Bufsp.decode`. It will use constructor's `options.encoding` while not provided.
+
+#### Event: 'error'
+
+- `error` {Error}
+
+Emitted when an error occurs.
+
+#### Event: 'drain'
+
+Emitted when chunk have been parsed or need more chunks for parsing.
+
+#### Event: 'data'
+
+Emitted when integrated buffer frame | string | null | error produced.
+
+#### Event: 'finish' and 'end'
+
+The `finish` and `end` events are from the parent Writable and Readable classes respectively. The `finish` event is fired after `.end()` is called and all chunks have been processed, `end` is fired after all data has been output which is after the callback in `_flush` has been called.
 
 ## License
 
-MIT © [zensh](https://github.com/teambition)
+MIT © [teambition](https://github.com/teambition)
 
 [npm-url]: https://npmjs.org/package/bufsp
 [npm-image]: http://img.shields.io/npm/v/bufsp.svg

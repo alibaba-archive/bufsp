@@ -1,9 +1,8 @@
 'use strict';
 /*
- * RESP.js
- * https://github.com/zensh/resp.js
+ * BUFSP
+ * https://github.com/teambition/bufsp
  *
- * Copyright (c) 2014 Yan Qing
  * Licensed under the MIT license.
  */
 
@@ -11,14 +10,15 @@ var util = require('util');
 var Transform = require('stream').Transform;
 var CRLF = '\r\n';
 
-exports.Bufsp = Bufsp;
-exports.encode = encode;
-exports.decode = decode;
+module.exports = Bufsp;
+Bufsp.encode = encode;
+Bufsp.decode = decode;
 
 function Bufsp(options) {
   if (!(this instanceof Bufsp)) return new Bufsp(options);
   options = options || {};
   options.encoding = options.encoding || 'utf8';
+  options.objectMode = false;
 
   this._encoding = options.encoding;
   this._stringEncoding = !!options.returnString && options.encoding;
