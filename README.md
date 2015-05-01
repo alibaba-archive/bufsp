@@ -89,7 +89,7 @@ var Bufsp = require('bufsp');
 
 #### new Bufsp([options])
 
-Bufsp is a Transform stream. It accept `BUFSP` chunks, parse them, produce integrated buffer frames | strings | null | error.
+Bufsp is a EventEmitter similar to `Writable` stream. It accept `BUFSP` chunks, parse them, produce integrated buffer frames | strings | null | error. `Readable` stream can be piped to `bufsp`.
 
 - `options` {Object}
   - `encoding` {String} use to encode or decode between buffer and string, default to `'utf8'`
@@ -102,9 +102,13 @@ var bufsp = new Bufsp({returnString: true});
 bufsp.on('data', function(message) {
   // received data and decode to message
   console.log(JSON.stringify(message))
-})
+});
 
 socket.pipe(bufsp);
+// or
+// socket.on('data', function (chunk) {
+//   bufsp.write(chunk);
+// });
 
 // send a message in BUFSP buffer
 socket.write(bufsp.encode(JSON.stringify({_id: 'xxx', name: 'test'})));
@@ -115,7 +119,7 @@ socket.write(bufsp.encode(JSON.stringify({_id: 'xxx', name: 'test'})));
 Encode `value` to `BUFSP` buffer.
 
 - `value` {Buffer|String|null|Error} data to encode
-- `encoding` {String} String Encoding of String chunks, accept all `Buffer` encodings
+- `encoding` {String} String Encoding of String chunks, accept all `Buffer` encodings, default to `undefined`
 
 Return buffer.
 
@@ -138,33 +142,33 @@ var binBuf = Bufsp.encode(new Buffer([0xff, 0xff, 0xff]));
 Decode `BUFSP` buffer to integrated buffer frame or string.
 
 - `buffer` {Buffer|String|null|Error} data to decode
-- `encoding` {String} String Encoding of String chunks, accept all `Buffer` encodings
+- `encoding` {String} String Encoding of String chunks, accept all `Buffer` encodings, default to `undefined`
 
 Return {Buffer|null|Error} data, if encoding is provided, it will try to return string. if buffer can't be decode, it will throw error.
 
 ```js
-var val = Bufsp.decode(new Buffer([0x24, 0x2d, 0x31, 0x0d, 0x0a]));
+Bufsp.decode(Bufsp.encode(null));
 // null
 
-var errorBuf = Bufsp.encode(new Buffer([0x2d, 0x45, 0x72, 0x72, 0x6f, 0x72, 0x20, 0x65, 0x72, 0x72, 0x6f, 0x72, 0x21, 0x0d, 0x0a]));
-// { [Error: Error error!] type: 'Error' }
+Bufsp.encode(Bufsp.encode(new Error('error!')));
+// { [Error: error!] name: 'Error' }
 ```
 
-#### bufsp.push(chunk[, encoding])
+#### bufsp.write(chunk)
 
-Same as readableStream's `push` metod. It should accept `BUFSP` chunk.
+Feed `BUFSP` chunk and decode.
 
-#### bufsp.pipe(destination[, options])
+#### bufsp.end([chunk])
 
-Same as readableStream's `pipe` metod.
+The same as readableStream's `pipe` metod.
 
 #### bufsp.encode(value[, encoding])
 
-Same as `Bufsp.encode`. It will use constructor's `options.encoding` while not provided.
+The same as `Bufsp.encode`. It will use constructor's `options.encoding` if omitted.
 
 #### bufsp.decode(buffer[, encoding])
 
-Same as `Bufsp.decode`. It will use constructor's `options.encoding` while not provided.
+The same as `Bufsp.decode`. It will use constructor's `options.returnString && options.encoding` if omitted.
 
 #### Event: 'error'
 
@@ -172,17 +176,19 @@ Same as `Bufsp.decode`. It will use constructor's `options.encoding` while not p
 
 Emitted when an error occurs.
 
+#### Event: 'data'
+
+- `data` {Buffer|String|null|Error}
+
+Emitted when integrated buffer frame | string | null | error produced. Notice that the data may be `null` or `Error` which come from another side, it is not general stream chunk.
+
 #### Event: 'drain'
 
 Emitted when chunk have been parsed or need more chunks for parsing.
 
-#### Event: 'data'
+#### Event: 'finish'
 
-Emitted when integrated buffer frame | string | null | error produced.
-
-#### Event: 'finish' and 'end'
-
-The `finish` and `end` events are from the parent Writable and Readable classes respectively. The `finish` event is fired after `.end()` is called and all chunks have been processed, `end` is fired after all data has been output which is after the callback in `_flush` has been called.
+The `finish` event is fired after `.end()` is called and all chunks have been processed.
 
 ## License
 

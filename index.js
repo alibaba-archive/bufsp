@@ -7,7 +7,7 @@
  */
 
 var util = require('util');
-var Transform = require('stream').Transform;
+var EventEmitter = require('events').EventEmitter;
 var CRLF = '\r\n';
 
 module.exports = Bufsp;
@@ -17,27 +17,31 @@ Bufsp.decode = decode;
 function Bufsp(options) {
   if (!(this instanceof Bufsp)) return new Bufsp(options);
   options = options || {};
-  options.encoding = options.encoding || 'utf8';
-  options.objectMode = false;
 
-  this._encoding = options.encoding;
-  this._stringEncoding = !!options.returnString && options.encoding;
+  this._encoding = options.encoding || 'utf8';
+  this._stringEncoding = !!options.returnString && this._encoding;
+
+  // legacy from old stream.
+  this.writable = true;
 
   clearState(this);
-  Transform.call(this, options);
+  EventEmitter.call(this);
 }
-util.inherits(Bufsp, Transform);
+util.inherits(Bufsp, EventEmitter);
 
 Bufsp.prototype.encode = function(val, encoding) {
   return encode(val, encoding || this._encoding);
 };
 
 Bufsp.prototype.decode = function(val, encoding) {
-  return decode(val, encoding || this._encoding);
+  return decode(val, encoding || this._stringEncoding);
 };
 
-Bufsp.prototype._transform = function(chunk, encoding, done) {
-  if (!Buffer.isBuffer(chunk)) return done(new BufspError('Invalid buffer chunk'));
+Bufsp.prototype.write = function(chunk) {
+  if (!Buffer.isBuffer(chunk)) {
+    this.emit('error', new Error('Invalid buffer chunk'));
+    return true;
+  }
 
   if (!this._buffer) this._buffer = chunk;
   else {
@@ -54,24 +58,58 @@ Bufsp.prototype._transform = function(chunk, encoding, done) {
     var result = parseBuffer(this._buffer, this._index, this._stringEncoding);
     if (result == null) {
       this.emit('drain');
-      return done();
+      return true;
     }
     if (result instanceof Error) {
       clearState(this);
-      return done(result);
+      this.emit('error', result);
+      return false;
     }
     this._index = result.index;
-    this.push(result.content);
+    this.emit('data', result.content);
   }
 
   clearState(this).emit('drain');
-  return done();
+  return true;
+};
+
+Bufsp.prototype.end = function(chunk) {
+  if (chunk) this.write(chunk);
+  this.emit('finish');
 };
 
 function clearState(ctx) {
   ctx._index = 0;
   ctx._buffer = null;
   return ctx;
+}
+
+function encode(val, encoding) {
+  if (val == null) return new Buffer('$-1\r\n');
+
+  if (util.isError(val)) {
+    val = '-' + val.name + ' ' + val.message + CRLF;
+    return new Buffer(val);
+  }
+
+  if (!Buffer.isBuffer(val)) {
+    if (typeof val !== 'string') throw new Error('Invalid value to encode');
+    val = new Buffer(val, encoding);
+  }
+  var str = '$' + val.length + CRLF;
+  var buffer = new Buffer(str.length + val.length + 2);
+  buffer.write(str);
+  val.copy(buffer, str.length);
+  buffer.write(CRLF, str.length + val.length);
+  return buffer;
+}
+
+function decode(buffer, encoding) {
+  if (!Buffer.isBuffer(buffer)) throw new Error('Invalid buffer chunk');
+  var result = parseBuffer(buffer, 0, encoding);
+  if (!result || result.index < buffer.length) throw new Error('Decode failed');
+  if (result instanceof Error) throw result;
+  return result.content;
 }
 
 function readBuffer(buffer, index) {
@@ -91,18 +129,18 @@ function parseBuffer(buffer, index, stringEncoding) {
 
   switch (buffer[index]) {
     case 45: // '-'
-      if (!result.content.length) return new BufspError('Parse "-" failed');
-      var type = result.content.replace(/\s[\s\S]*$/, '');
-      result.content = new Error(result.content);
-      result.content.type = type;
+      var fragment = result.content.match(/^(\S+) ([\s\S]+)$/);
+      if (!fragment) return new Error('Parse "-" failed');
+      result.content = new Error(fragment[2]);
+      result.content.name = fragment[1];
       return result;
 
     case 36: // '$'
       len = +result.content;
-      if (!result.content.length || len !== len) return new BufspError('Parse "$" failed, invalid length');
+      if (!result.content.length || len !== len) return new Error('Parse "$" failed, invalid length');
       if (len === -1) result.content = null;
       else if (buffer.length < result.index + len + 2) return null;
-      else if (!isCRLF(buffer, result.index + len)) return new BufspError('Parse "$" failed, invalid CRLF');
+      else if (!isCRLF(buffer, result.index + len)) return new Error('Parse "$" failed, invalid CRLF');
       else {
         result.content = buffer.slice(result.index, result.index + len);
         if (stringEncoding) result.content = result.content.toString(stringEncoding);
@@ -110,41 +148,9 @@ function parseBuffer(buffer, index, stringEncoding) {
       }
       return result;
   }
-  return new BufspError('Invalid Chunk: parse failed');
-}
-
-function encode(val, encoding) {
-  if (val == null) return new Buffer('$-1\r\n');
-
-  if (util.isError(val)) {
-    val = '-' + (val.type || val.name) + ' ' + val.message + CRLF;
-    return new Buffer(val);
-  }
-
-  if (!Buffer.isBuffer(val)) val = new Buffer(val, encoding);
-  var str = '$' + val.length + CRLF;
-  var buffer = new Buffer(str.length + val.length + 2);
-  buffer.write(str);
-  val.copy(buffer, str.length);
-  buffer.write(CRLF, str.length + val.length);
-  return buffer;
-}
-
-function decode(buffer, encoding) {
-  if (!Buffer.isBuffer(buffer)) throw new BufspError('Invalid buffer chunk');
-  var result = parseBuffer(buffer, 0, encoding);
-  if (!result || result.index < buffer.length) throw new BufspError('Decode failed');
-  if (result instanceof Error) throw result;
-  return result.content;
+  return new Error('Invalid Buffer: parse failed');
 }
 
 function isCRLF(buffer, index) {
   return buffer[index] === 13 && buffer[index + 1] === 10;
 }
-
-function BufspError(message) {
-  Error.captureStackTrace(this, this.constructor);
-  this.message = message;
-}
-util.inherits(BufspError, Error);
-BufspError.prototype.name = 'BufspError';
