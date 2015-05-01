@@ -13,20 +13,21 @@
   "homepage": "https://github.com/teambition/bufsp.js",
   "keywords": [
     "bufsp",
-    "frame",
     "buffer",
     "socket",
+    "frame",
     "pipelining",
-    "Protocol",
+    "serialize",
+    "protocol",
     "chunk"
   ],
   "dependencies": {},
   "devDependencies": {
-    "gulp": "^3.8.8",
-    "gulp-jshint": "^1.9.2",
-    "gulp-mocha": "^2.0.0",
+    "gulp": "^3.8.11",
+    "gulp-jshint": "^1.10.0",
+    "gulp-mocha": "^2.0.1",
     "gulp-sequence": "^0.3.2",
-    "mocha": "^2.2.0"
+    "mocha": "^2.2.4"
   },
   "scripts": {
     "test": "gulp test"

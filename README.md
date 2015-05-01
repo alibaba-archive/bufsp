@@ -18,7 +18,7 @@ There are only two type:
 
 ### BUFSP Errors
 
-It is use to response a error from one side to another. The basic format is:
+BUFSP error is use to response a error from one side to another. The basic format is:
 
 ```
 "-Error message\r\n"
@@ -29,11 +29,11 @@ Become to buffer:
 <Buffer 2d 45 72 72 6f 72 20 6d 65 73 73 61 67 65 0d 0a>
 ```
 
-It will be decode to `new Error(message)`.
+It will be decoded to `new Error(message)`.
 
 ### BUFSP Bulk Strings
 
-Bulk Strings are used in order to represent single binary safe string, `null`, or binary buffer.
+Bulk string is used in order to represent single binary safe string, binary buffer, or `null`.
 
 Bulk Strings are encoded in the following way:
 
@@ -53,6 +53,12 @@ the string "中文" is encoded as follows:
 "$6\r\n中文\r\n"
 ```
 
+the binary buffer `new Buffer(10).fill(0)` is encoded as follows:
+
+```
+"$10\r\n\0\0\0\0\0\0\0\0\0\0\r\n"
+```
+
 When an empty string is just:
 
 ```
@@ -65,7 +71,7 @@ RESP Bulk Strings can also be used in order to signal non-existence of a value u
 "$-1\r\n"
 ```
 
-This is called a **Null Bulk String**.
+This is called a **Null Bulk String**. It can be use as heartbeat packet.
 
 ## Install
 
@@ -110,8 +116,9 @@ socket.pipe(bufsp);
 //   bufsp.write(chunk);
 // });
 
-// send a message in BUFSP buffer
-socket.write(bufsp.encode(JSON.stringify({_id: 'xxx', name: 'test'})));
+
+// server side send a message in BUFSP buffer to the client
+server_socket.write(bufsp.encode(JSON.stringify({_id: 'xxx', name: 'test'})));
 ```
 
 #### Class Method: Bufsp.encode(value[, encoding])
@@ -151,16 +158,16 @@ Bufsp.decode(Bufsp.encode(null));
 // null
 
 Bufsp.encode(Bufsp.encode(new Error('error!')));
-// { [Error: error!] name: 'Error' }
+// { [Error: error!] }
 ```
 
 #### bufsp.write(chunk)
 
-Feed `BUFSP` chunk and decode.
+Feed `BUFSP` chunk and parse it. bufsp will emit `data` event while a integrated data decoded.
 
 #### bufsp.end([chunk])
 
-The same as readableStream's `pipe` metod.
+Call this method when no more chunk will be written to bufsp, then `finish` event emit.
 
 #### bufsp.encode(value[, encoding])
 
@@ -180,7 +187,7 @@ Emitted when an error occurs.
 
 - `data` {Buffer|String|null|Error}
 
-Emitted when integrated buffer frame | string | null | error produced. Notice that the data may be `null` or `Error` which come from another side, it is not general stream chunk.
+Emitted when integrated buffer frame | string | null | error produced. Notice that the data may be `null` or `Error` object, it is not general stream chunk.
 
 #### Event: 'drain'
 
