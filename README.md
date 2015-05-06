@@ -5,7 +5,7 @@ Buffer Frame Serialization Protocol (BUFSP), parse pipelining chunks.
 [![NPM version][npm-image]][npm-url]
 [![Build Status][travis-image]][travis-url]
 
-BUFSP is a underlying protocol designed specifically for socket commutation with buffer frames.
+BUFSP is a low level protocol designed specifically for socket commutation with buffer frames.
 
 As we know, **chunks** output from net socket mostly are not represent integrated messages. Sometimes a **chunk** include onemore integrated messages, or a number of chunks represent a integrated message. How can we get message one by one from these chunks? **BUFSP** is designed.
 

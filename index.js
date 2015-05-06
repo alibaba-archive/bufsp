@@ -123,12 +123,12 @@ function readBuffer(buffer, index) {
 }
 
 function parseBuffer(buffer, index, stringEncoding) {
-  var len = NaN;
-  var result = readBuffer(buffer, index + 1);
-  if (result == null) return result;
+  var len = NaN, result = null;
 
   switch (buffer[index]) {
     case 45: // '-'
+      result = readBuffer(buffer, index + 1);
+      if (result == null) return result;
       var fragment = result.content.match(/^(\S+) ([\s\S]+)$/);
       if (!fragment) return new Error('Parse "-" failed');
       result.content = new Error(fragment[2]);
@@ -136,6 +136,8 @@ function parseBuffer(buffer, index, stringEncoding) {
       return result;
 
     case 36: // '$'
+      result = readBuffer(buffer, index + 1);
+      if (result == null) return result;
       len = +result.content;
       if (!result.content.length || len !== len) return new Error('Parse "$" failed, invalid length');
       if (len === -1) result.content = null;

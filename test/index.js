@@ -143,6 +143,29 @@ describe('Bufsp', function() {
     var calledDrain = null;
     socket.pipe(bufsp)
       .on('error', function(err) {
+        assert(err.message === 'Invalid Buffer: parse failed');
+        assert(err instanceof Error);
+        done();
+      })
+      .on('data', function(message) {
+        res.push(message);
+      })
+      .on('drain', function() {
+        calledDrain = true;
+      });
+
+    socket.write(new Buffer('not bufsp chunk'));
+    socket.end();
+  });
+
+  it('new Bufsp() with error data', function(done) {
+    var bufsp = new Bufsp({returnString: true});
+    var socket = net.createConnection(2999);
+    var res = [];
+
+    var calledDrain = null;
+    socket.pipe(bufsp)
+      .on('error', function(err) {
         assert(calledDrain === null);
         assert(res[0] === null);
         assert(res.length === 1);
